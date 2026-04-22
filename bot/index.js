@@ -14,33 +14,28 @@ async function startBot() {
 
     const sock = makeWASocket({
         version,
-        auth: state,
-        browser: ['MacOS', 'Chrome', '10.0']
+        auth: state
     })
 
-    // salvar sessão
     sock.ev.on('creds.update', saveCreds)
 
     // conexão
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update
+        const { connection, qr, lastDisconnect } = update
 
-        // QR Code
         if (qr) {
-            console.log("📱 Escaneie o QR Code:")
             qrcode.generate(qr, { small: true })
         }
 
         if (connection === 'open') {
-            console.log("✅ Conectado ao WhatsApp!")
+            console.log('✅ Conectado ao WhatsApp!')
         }
 
-        // reconexão automática
         if (connection === 'close') {
             const shouldReconnect =
                 lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
 
-            console.log("⚠️ Conexão fechada. Reconectando...")
+            console.log('❌ Conexão fechada. Reconectando...', shouldReconnect)
 
             if (shouldReconnect) {
                 startBot()
@@ -48,53 +43,51 @@ async function startBot() {
         }
     })
 
-    // mensagens recebidas
-    sock.ev.on('messages.upsert', async (msg) => {
+    // mensagens
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+        const m = messages[0]
+
+        if (!m.message) return
+
+        // ignora mensagens do próprio bot
+        if (m.key.fromMe) return
+
+        const numero = m.key.remoteJid
+        const isGroup = numero.endsWith('@g.us')
+
+        const texto =
+            m.message.conversation ||
+            m.message.extendedTextMessage?.text ||
+            ''
+
+        if (!texto) return
+
+        console.log('📩 Mensagem:', texto)
+
         try {
-            const m = msg.messages[0]
-
-            if (!m.message) return
-
-            // 🚨 evita loop infinito (ESSENCIAL)
-            if (m.key.fromMe) return
-
-            const numero = m.key.remoteJid
-
-            const texto =
-                m.message?.conversation ||
-                m.message?.extendedTextMessage?.text ||
-                m.message?.imageMessage?.caption ||
-                m.message?.videoMessage?.caption
-
-            if (!texto) return
-
-            console.log("📩 Mensagem:", texto)
-
-            // 🚫 evita responder respostas do próprio bot/backend
-            if (texto === "Não entendi 🤔") return
-
-            // chamada para seu backend (Render)
             const response = await axios.post(
                 "https://score-do-desapego.onrender.com/webhook",
                 {
                     message: texto,
-                    phone: numero
+                    phone: numero,
+                    isGroup: isGroup,
+                    chatId: numero
                 }
             )
 
-            const reply = response.data.reply || "Erro ao processar 😢"
+            const reply = response.data.reply
 
-            // pequena pausa (evita rate limit)
+            if (!reply) return
+
+            // evita rate limit
             await new Promise(resolve => setTimeout(resolve, 800))
 
-            // enviar resposta
             await sock.sendMessage(numero, { text: reply })
 
         } catch (error) {
-            console.log("❌ Erro:", error.message)
+            console.log('❌ Erro API:', error.response?.data || error.message)
         }
     })
 }
 
-// iniciar bot
 startBot()
