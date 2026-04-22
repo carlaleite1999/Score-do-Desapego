@@ -52,8 +52,13 @@ async function startBot() {
         // ignora mensagens do próprio bot
         if (m.key.fromMe) return
 
-        const numero = m.key.remoteJid
-        const isGroup = numero.endsWith('@g.us')
+        const chatId = m.key.remoteJid
+        const isGroup = chatId.endsWith('@g.us')
+
+        // 👇 QUEM ENVIOU (IMPORTANTE PARA GRUPO)
+        const sender = isGroup
+            ? m.key.participant
+            : chatId
 
         const texto =
             m.message.conversation ||
@@ -63,15 +68,18 @@ async function startBot() {
         if (!texto) return
 
         console.log('📩 Mensagem:', texto)
+        console.log('👤 Sender:', sender)
+        console.log('💬 Chat:', chatId)
+        console.log('👥 Grupo?', isGroup)
 
         try {
             const response = await axios.post(
                 "https://score-do-desapego.onrender.com/webhook",
                 {
                     message: texto,
-                    phone: numero,
+                    phone: sender,   // 👈 agora é a pessoa
                     isGroup: isGroup,
-                    chatId: numero
+                    chatId: chatId   // 👈 agora é o grupo
                 }
             )
 
@@ -82,7 +90,7 @@ async function startBot() {
             // evita rate limit
             await new Promise(resolve => setTimeout(resolve, 800))
 
-            await sock.sendMessage(numero, { text: reply })
+            await sock.sendMessage(chatId, { text: reply })
 
         } catch (error) {
             console.log('❌ Erro API:', error.response?.data || error.message)
