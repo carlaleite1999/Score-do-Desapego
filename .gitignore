@@ -1,0 +1,9 @@
+bot/node_modules/
+bot/auth/
+node_modules/
+auth/
+venv/
+__pycache__/
+*.pyc
+bot.db
+.env
