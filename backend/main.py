@@ -12,6 +12,7 @@ class Msg(BaseModel):
     message: str
     phone: str
     isGroup: bool
+    chatId: str
 
 
 @app.post("/webhook")
@@ -21,7 +22,7 @@ def webhook(data: Msg):
     user = data.phone
 
     # 🔒 só responde privado ou grupo permitido
-    if data.isGroup and user != GRUPO_PERMITIDO:
+    if data.isGroup and data.chatId != GRUPO_PERMITIDO:
         return {"reply": ""}
 
     texto_lower = texto.lower()
@@ -67,7 +68,11 @@ def webhook(data: Msg):
         if len(partes) < 3:
             return {"reply": "Use: /avaliar nota comentario"}
 
-        nota = int(partes[1])
+        try:
+            nota = int(partes[1])
+        except:
+            return {"reply": "Nota inválida"}
+
         comentario = " ".join(partes[2:])
 
         if nota < 1 or nota > 5:
