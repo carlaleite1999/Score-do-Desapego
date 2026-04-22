@@ -19,6 +19,7 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds)
 
+    // conexão
     sock.ev.on('connection.update', (update) => {
         const { connection, qr, lastDisconnect } = update
 
@@ -34,12 +35,15 @@ async function startBot() {
             const shouldReconnect =
                 lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
 
+            console.log('❌ Conexão fechada. Reconectando...', shouldReconnect)
+
             if (shouldReconnect) {
                 startBot()
             }
         }
     })
 
+    // mensagens
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0]
 
@@ -49,9 +53,15 @@ async function startBot() {
         const numero = m.key.remoteJid
         const isGroup = numero.endsWith('@g.us')
 
-        const sender = isGroup
-            ? m.key.participant
-            : numero
+        // 🔥 CORREÇÃO DEFINITIVA DO SENDER
+        let sender = numero
+
+        if (isGroup) {
+            sender =
+                m.key.participant ??
+                m.message?.extendedTextMessage?.contextInfo?.participant ??
+                numero
+        }
 
         const texto =
             m.message.conversation ||
@@ -70,7 +80,7 @@ async function startBot() {
                 "https://score-do-desapego.onrender.com/webhook",
                 {
                     message: texto,
-                    phone: sender,   // 🔥 corrigido
+                    phone: sender,   // 🔥 sempre válido agora
                     isGroup: isGroup,
                     chatId: numero
                 }
@@ -80,12 +90,14 @@ async function startBot() {
 
             if (!reply) return
 
+            // evita rate limit
             await new Promise(resolve => setTimeout(resolve, 800))
 
+            // 🔥 ESSENCIAL PRA RESPONDER EM GRUPO
             await sock.sendMessage(
                 numero,
                 { text: reply },
-                { quoted: m } // 🔥 ESSENCIAL PRA GRUPO
+                { quoted: m }
             )
 
         } catch (error) {
